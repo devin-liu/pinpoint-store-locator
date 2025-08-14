@@ -1,0 +1,149 @@
+import { useState, useCallback } from "react";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
+import { useLoaderData, useFetcher } from "@remix-run/react";
+import {
+  Page,
+  Layout,
+  Card,
+  Button,
+  FormLayout,
+  TextField,
+  Toast,
+  Frame,
+  BlockStack,
+  Text,
+  Divider,
+} from "@shopify/polaris";
+import { TitleBar } from "@shopify/app-bridge-react";
+import { authenticate } from "../shopify.server";
+import db from "../db.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  
+  const settings = await db.appSettings.findUnique({
+    where: { shop: session.shop },
+  });
+
+  return json({ settings });
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
+
+  const settings = await db.appSettings.upsert({
+    where: { shop: session.shop },
+    update: {
+      googleMapsApiKey,
+    },
+    create: {
+      shop: session.shop,
+      googleMapsApiKey,
+    },
+  });
+
+  return json({ success: true, settings });
+};
+
+export default function Settings() {
+  const { settings } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<typeof action>();
+  
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState(
+    settings?.googleMapsApiKey || ""
+  );
+  const [showToast, setShowToast] = useState(false);
+
+  const handleSubmit = useCallback(() => {
+    const formData = new FormData();
+    formData.append("googleMapsApiKey", googleMapsApiKey);
+    
+    fetcher.submit(formData, { method: "POST" });
+    setShowToast(true);
+  }, [googleMapsApiKey, fetcher]);
+
+  const isLoading = fetcher.state === "submitting";
+
+  const toastMarkup = showToast ? (
+    <Toast 
+      content="Settings saved successfully" 
+      onDismiss={() => setShowToast(false)} 
+    />
+  ) : null;
+
+  return (
+    <Frame>
+      <Page>
+        <TitleBar title="App Settings" />
+        
+        <Layout>
+          <Layout.Section>
+            <Card>
+              <BlockStack gap="400">
+                <Text as="h2" variant="headingMd">
+                  Google Maps Configuration
+                </Text>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  Configure your Google Maps API key to enable geocoding and map features 
+                  for your store locator.
+                </Text>
+                
+                <Divider />
+                
+                <FormLayout>
+                  <TextField
+                    label="Google Maps API Key"
+                    value={googleMapsApiKey}
+                    onChange={setGoogleMapsApiKey}
+                    autoComplete="off"
+                    type="password"
+                    helpText="Enter your Google Maps API key. This will be used for geocoding addresses and displaying maps."
+                  />
+                  
+                  <Button
+                    variant="primary"
+                    onClick={handleSubmit}
+                    loading={isLoading}
+                  >
+                    Save Settings
+                  </Button>
+                </FormLayout>
+
+                <Divider />
+
+                <BlockStack gap="200">
+                  <Text as="h3" variant="headingMd">
+                    Getting a Google Maps API Key
+                  </Text>
+                  <Text as="p" variant="bodyMd">
+                    To get a Google Maps API key:
+                  </Text>
+                  <Text as="ol" variant="bodyMd">
+                    <li>1. Go to the Google Cloud Console</li>
+                    <li>2. Create a new project or select an existing one</li>
+                    <li>3. Enable the Maps JavaScript API and Geocoding API</li>
+                    <li>4. Create credentials (API key)</li>
+                    <li>5. Restrict the API key to your domain for security</li>
+                  </Text>
+                  <Text as="p" variant="bodyMd" tone="subdued">
+                    <a 
+                      href="https://developers.google.com/maps/documentation/javascript/get-api-key" 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                    >
+                      View detailed instructions →
+                    </a>
+                  </Text>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+          </Layout.Section>
+        </Layout>
+      </Page>
+      {toastMarkup}
+    </Frame>
+  );
+}
