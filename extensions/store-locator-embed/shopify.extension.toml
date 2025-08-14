@@ -1,0 +1,6 @@
+api_version = "2024-07"
+
+[[extensions]]
+type = "theme_app_extension"
+name = "store-locator"
+handle = "store-locator"

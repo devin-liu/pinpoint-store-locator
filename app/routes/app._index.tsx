@@ -21,7 +21,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
 
   let appSettings = await prisma.appSettings.findUnique({
     where: { shop: session.shop },
@@ -33,6 +33,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         shop: session.shop,
       },
     });
+  }
+
+  // Set app metafield to enable the store locator embed block
+  try {
+    await admin.graphql(`
+      #graphql
+      mutation appInstallationMetafieldsSet($metafields: [AppInstallationMetafieldInput!]!) {
+        appInstallationMetafieldsSet(metafields: $metafields) {
+          appInstallationMetafields {
+            id
+            key
+            namespace
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [
+          {
+            namespace: "availability",
+            key: "store_locator",
+            type: "boolean",
+            value: "true",
+          },
+        ],
+      },
+    });
+  } catch (error) {
+    console.error("Error setting app metafield:", error);
   }
 
   return json({ appSettings, shop: session.shop });

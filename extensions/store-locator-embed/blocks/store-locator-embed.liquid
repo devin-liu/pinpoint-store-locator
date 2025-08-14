@@ -1,0 +1,27 @@
+{% comment %}
+  Store Locator Floating Button Block
+  This block enables a floating store locator button site-wide
+{% endcomment %}
+
+{% if block.settings.enable_floating_button %}
+  {% render 'store-locator-embed' %}
+{% endif %}
+
+{% schema %}
+{
+  "name": "Store Locator Button",
+  "target": "section",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enable_floating_button",
+      "label": "Enable floating store locator button",
+      "default": true
+    },
+    {
+      "type": "paragraph",
+      "content": "This adds a floating 'Find Stores' button to every page of your store. Customers can click it to search for nearby store locations."
+    }
+  ]
+}
+{% endschema %}

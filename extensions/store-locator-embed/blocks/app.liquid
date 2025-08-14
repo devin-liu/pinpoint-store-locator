@@ -1,0 +1,315 @@
+{% comment %}
+  Store Locator App Block
+  Renders a store locator interface with search functionality and optional map
+{% endcomment %}
+
+<div id="store-locator-{{ block.id }}" class="store-locator-app" data-app-id="{{ app.id }}" data-shop="{{ shop.domain }}">
+  {% if block.settings.heading != blank %}
+    <h2 class="store-locator-heading">{{ block.settings.heading }}</h2>
+  {% endif %}
+
+  <div class="store-locator-search">
+    <input 
+      type="text" 
+      id="store-search-{{ block.id }}" 
+      placeholder="{{ block.settings.search_placeholder }}"
+      class="store-search-input"
+    >
+    <button type="button" id="search-btn-{{ block.id }}" class="store-search-btn">Search</button>
+  </div>
+
+  {% if block.settings.show_map %}
+    <div 
+      id="store-map-{{ block.id }}" 
+      class="store-map" 
+      style="height: {{ block.settings.map_height }}px;"
+    ></div>
+  {% endif %}
+
+  <div id="store-list-{{ block.id }}" class="store-list">
+    <div class="store-loading" style="display: none;">Loading stores...</div>
+    <div class="store-results"></div>
+  </div>
+
+  <style>
+    .store-locator-app {
+      margin: 20px 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .store-locator-heading {
+      margin-bottom: 20px;
+      font-size: 24px;
+      font-weight: 600;
+    }
+    
+    .store-locator-search {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .store-search-input {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+    
+    .store-search-btn {
+      padding: 12px 24px;
+      background: #007cba;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    
+    .store-search-btn:hover {
+      background: #005a87;
+    }
+    
+    .store-map {
+      margin-bottom: 20px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      background: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #666;
+    }
+    
+    .store-list {
+      margin-top: 20px;
+    }
+    
+    .store-loading {
+      text-align: center;
+      padding: 20px;
+      color: #666;
+    }
+    
+    .store-item {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 16px;
+      margin-bottom: 12px;
+      background: #fff;
+    }
+    
+    .store-name {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .store-address {
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .store-distance {
+      font-size: 14px;
+      color: #007cba;
+      font-weight: 500;
+    }
+    
+    .no-stores {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+    }
+  </style>
+</div>
+
+<script>
+(function() {
+  const blockId = '{{ block.id }}';
+  const appId = '{{ app.id }}';
+  const shopDomain = '{{ shop.domain }}';
+  const storesPerPage = {{ block.settings.stores_per_page }};
+  const showMap = {{ block.settings.show_map }};
+  
+  const searchInput = document.getElementById(`store-search-${blockId}`);
+  const searchBtn = document.getElementById(`search-btn-${blockId}`);
+  const storeList = document.getElementById(`store-list-${blockId}`);
+  const loading = storeList.querySelector('.store-loading');
+  const results = storeList.querySelector('.store-results');
+  
+  let stores = [];
+  let userLocation = null;
+  
+  // Load stores from the app
+  async function loadStores() {
+    try {
+      loading.style.display = 'block';
+      const response = await fetch(`https://${shopDomain}/apps/pinpoint-store-locator/api/stores?shop=${shopDomain}`);
+      if (response.ok) {
+        stores = await response.json();
+        displayStores(stores);
+      } else {
+        showError('Failed to load stores');
+      }
+    } catch (error) {
+      showError('Error loading stores: ' + error.message);
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+  
+  // Display stores in the list
+  function displayStores(storesToShow) {
+    if (storesToShow.length === 0) {
+      results.innerHTML = '<div class="no-stores">No stores found</div>';
+      return;
+    }
+    
+    const storeHTML = storesToShow.slice(0, storesPerPage).map(store => {
+      const distanceText = store.distance ? 
+        `<div class="store-distance">${store.distance} miles away</div>` : '';
+      
+      return `
+        <div class="store-item">
+          <div class="store-name">${escapeHtml(store.name)}</div>
+          <div class="store-address">${escapeHtml(store.address)}</div>
+          ${distanceText}
+        </div>
+      `;
+    }).join('');
+    
+    results.innerHTML = storeHTML;
+  }
+  
+  // Search stores by location
+  async function searchStores(query) {
+    if (!query.trim()) {
+      displayStores(stores);
+      return;
+    }
+    
+    try {
+      loading.style.display = 'block';
+      
+      // Get user location coordinates from the query (using a geocoding service)
+      const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+      const geocodeData = await geocodeResponse.json();
+      
+      if (geocodeData.length > 0) {
+        const userLat = parseFloat(geocodeData[0].lat);
+        const userLon = parseFloat(geocodeData[0].lon);
+        
+        // Calculate distances and sort by proximity
+        const storesWithDistance = stores.map(store => {
+          if (store.latitude && store.longitude) {
+            const distance = calculateDistance(userLat, userLon, store.latitude, store.longitude);
+            return { ...store, distance: distance.toFixed(1) };
+          }
+          return store;
+        }).sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        
+        displayStores(storesWithDistance);
+      } else {
+        // Fallback to text search
+        const filtered = stores.filter(store => 
+          store.name.toLowerCase().includes(query.toLowerCase()) ||
+          store.address.toLowerCase().includes(query.toLowerCase())
+        );
+        displayStores(filtered);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      // Fallback to text search
+      const filtered = stores.filter(store => 
+        store.name.toLowerCase().includes(query.toLowerCase()) ||
+        store.address.toLowerCase().includes(query.toLowerCase())
+      );
+      displayStores(filtered);
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+  
+  // Calculate distance between two coordinates (Haversine formula)
+  function calculateDistance(lat1, lon1, lat2, lon2) {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+  
+  // Escape HTML to prevent XSS
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Show error message
+  function showError(message) {
+    results.innerHTML = `<div class="no-stores">Error: ${escapeHtml(message)}</div>`;
+  }
+  
+  // Event listeners
+  searchBtn.addEventListener('click', () => {
+    searchStores(searchInput.value);
+  });
+  
+  searchInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      searchStores(searchInput.value);
+    }
+  });
+  
+  // Initialize
+  loadStores();
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Store Locator",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Find Our Stores"
+    },
+    {
+      "type": "range",
+      "id": "stores_per_page",
+      "label": "Stores per page",
+      "min": 5,
+      "max": 50,
+      "step": 5,
+      "default": 10
+    },
+    {
+      "type": "checkbox",
+      "id": "show_map",
+      "label": "Show map",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "map_height",
+      "label": "Map height (px)",
+      "default": "400"
+    },
+    {
+      "type": "text",
+      "id": "search_placeholder",
+      "label": "Search placeholder text",
+      "default": "Enter your location..."
+    }
+  ]
+}
+{% endschema %}

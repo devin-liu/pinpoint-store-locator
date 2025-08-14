@@ -3,7 +3,7 @@
 client_id = "7d52cfcd5586fa5a86a67301539b3de2"
 name = "pinpoint-store-locator"
 handle = "pinpoint-store-locator"
-application_url = "https://pressed-supplement-substitute-clay.trycloudflare.com"
+application_url = "https://worry-validation-worship-niger.trycloudflare.com"
 embedded = true
 
 [build]
@@ -23,10 +23,10 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products"
+scopes = "write_products,read_themes"
 
 [auth]
-redirect_urls = ["https://pressed-supplement-substitute-clay.trycloudflare.com/auth/callback", "https://pressed-supplement-substitute-clay.trycloudflare.com/auth/shopify/callback", "https://pressed-supplement-substitute-clay.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://worry-validation-worship-niger.trycloudflare.com/auth/callback", "https://worry-validation-worship-niger.trycloudflare.com/auth/shopify/callback", "https://worry-validation-worship-niger.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
