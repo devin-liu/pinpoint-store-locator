@@ -35,7 +35,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  return json({ appSettings });
+  return json({ appSettings, shop: session.shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -125,9 +125,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Index() {
   const fetcher = useFetcher<typeof action>();
   const urlUpdateFetcher = useFetcher<typeof action>();
-  const { appSettings } = useLoaderData<typeof loader>();
+  const { appSettings, shop } = useLoaderData<typeof loader>();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [storeLocatorUrl, setStoreLocatorUrl] = useState(appSettings.storeLocatorUrl || "");
+  
+  // Extract page path from existing URL or default to empty
+  const getPagePathFromUrl = (url: string) => {
+    if (!url) return "";
+    try {
+      const urlObj = new URL(url);
+      const path = urlObj.pathname;
+      if (path.startsWith("/pages/")) {
+        return path.substring(7); // Remove "/pages/" prefix
+      }
+      return "";
+    } catch {
+      return "";
+    }
+  };
+  
+  const [pagePath, setPagePath] = useState(getPagePathFromUrl(appSettings.storeLocatorUrl || ""));
+  const shopDomain = `https://${shop}`;
+  const fullStoreLocatorUrl = pagePath ? `${shopDomain}/pages/${pagePath}` : "";
 
   const shopify = useAppBridge();
   const isLoading =
@@ -161,7 +179,7 @@ export default function Index() {
 
   const handleUrlUpdate = () => {
     urlUpdateFetcher.submit(
-      { intent: "updateStoreLocatorUrl", storeLocatorUrl },
+      { intent: "updateStoreLocatorUrl", storeLocatorUrl: fullStoreLocatorUrl },
       { method: "POST" }
     );
   };
@@ -227,10 +245,11 @@ export default function Index() {
         <Modal.Section>
           <TextField
             label="Store Locator URL"
-            value={storeLocatorUrl}
-            onChange={setStoreLocatorUrl}
-            placeholder="https://yourstore.com/pages/store-locator"
-            helpText="Enter the full URL to your store locator page"
+            value={pagePath}
+            onChange={setPagePath}
+            placeholder="store-locator"
+            prefix={`${shopDomain}/pages/`}
+            helpText="Enter the page name after /pages/ - your store domain is automatically included"
             autoComplete="off"
           />
         </Modal.Section>
