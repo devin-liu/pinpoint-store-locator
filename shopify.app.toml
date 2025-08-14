@@ -3,7 +3,7 @@
 client_id = "7d52cfcd5586fa5a86a67301539b3de2"
 name = "pinpoint-store-locator"
 handle = "pinpoint-store-locator"
-application_url = "https://typically-simultaneously-element-collapse.trycloudflare.com"
+application_url = "https://belt-packard-frontpage-paying.trycloudflare.com"
 embedded = true
 
 [build]
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = ["https://typically-simultaneously-element-collapse.trycloudflare.com/auth/callback", "https://typically-simultaneously-element-collapse.trycloudflare.com/auth/shopify/callback", "https://typically-simultaneously-element-collapse.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://belt-packard-frontpage-paying.trycloudflare.com/auth/callback", "https://belt-packard-frontpage-paying.trycloudflare.com/auth/shopify/callback", "https://belt-packard-frontpage-paying.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
