@@ -35,6 +35,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
+  const response = await admin.graphql(
+    `#graphql
+    query getShopMetafield($ownerId: ID!) {
+      shop(id: $ownerId) {
+        metafield(namespace: "$app:google_maps", key: "api_key") {
+          value
+        }
+      }
+    }`,
+    {
+      variables: {
+        ownerId: session.id,
+      },
+    }
+  );
+
+  const responseJson = await response.json();
+  const googleMapsApiKey = responseJson.data.shop.metafield?.value || "";
+
+
   // Set app metafields to enable the store locator embed block and pass Google Maps API key
   try {
     const metafields = [
@@ -45,16 +65,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         value: "true",
       },
     ];
-
-    // Add Google Maps API key metafield if available
-    if (appSettings.googleMapsApiKey) {
-      metafields.push({
-        namespace: "app",
-        key: "google_maps_api_key",
-        type: "single_line_text_field",
-        value: appSettings.googleMapsApiKey,
-      });
-    }
 
     // Add app URL metafield for API calls
     metafields.push({
@@ -87,7 +97,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Error setting app metafield:", error);
   }
 
-  return json({ appSettings, shop: session.shop });
+  return json({ appSettings, shop: session.shop, googleMapsApiKey });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -110,64 +120,71 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "updateGoogleMapsApiKey") {
     const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
 
-    await prisma.appSettings.upsert({
-      where: { shop: session.shop },
-      update: { googleMapsApiKey },
-      create: { shop: session.shop, googleMapsApiKey },
-    });
-
-    // Update the metafield with the new API key
-    try {
-      const metafields = [
-        {
-          namespace: "availability",
-          key: "store_locator",
-          type: "boolean",
-          value: "true",
-        },
-      ];
-
-      if (googleMapsApiKey) {
-        metafields.push({
-          namespace: "app",
-          key: "google_maps_api_key",
-          type: "single_line_text_field",
-          value: googleMapsApiKey,
-        });
-      }
-
-      // Always add app URL metafield
-      metafields.push({
-        namespace: "app",
-        key: "app_url",
-        type: "single_line_text_field",
-        value: process.env.SHOPIFY_APP_URL || "https://adjustments-chart-kai-interview.trycloudflare.com",
-      });
-
-      await admin.graphql(`
-        #graphql
-        mutation appInstallationMetafieldsSet($metafields: [AppInstallationMetafieldInput!]!) {
-          appInstallationMetafieldsSet(metafields: $metafields) {
-            appInstallationMetafields {
-              id
-              key
-              namespace
-              value
-            }
-            userErrors {
-              field
-              message
-            }
+    // 1. Create the metafield definition
+    await admin.graphql(
+      `#graphql
+      mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+        metafieldDefinitionCreate(definition: $definition) {
+          createdDefinition {
+            id
+          }
+          userErrors {
+            field
+            message
           }
         }
-      `, {
-        variables: { metafields },
-      });
-    } catch (error) {
-      console.error("Error updating Google Maps API key metafield:", error);
-    }
+      }`,
+      {
+        variables: {
+          definition: {
+            name: "Google Maps API Key",
+            key: "api_key",
+            description: "API key for Google Maps integration",
+            type: "single_line_text_field",
+            ownerType: "SHOP",
+            namespace: "$app:google_maps",
+          },
+        },
+      }
+    );
 
-    return json({ success: true, googleMapsApiKey });
+    // 2. Set the metafield value
+    const response = await admin.graphql(
+      `#graphql
+      mutation metaflieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+            value
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }`,
+      {
+        variables: {
+          metafields: [
+            {
+              namespace: "$app:google_maps",
+              key: "api_key",
+              type: "single_line_text_field",
+              value: googleMapsApiKey,
+              ownerId: session.id,
+            },
+          ],
+        },
+      }
+    );
+
+    const responseJson = await response.json();
+
+    return json({
+      success: responseJson.data.metafieldsSet.userErrors.length === 0,
+      errors: responseJson.data.metafieldsSet.userErrors,
+      googleMapsApiKey,
+    });
   }
 
   const color = ["Red", "Orange", "Yellow", "Green"][
@@ -241,7 +258,7 @@ export default function Index() {
   const fetcher = useFetcher<typeof action>();
   const urlUpdateFetcher = useFetcher<typeof action>();
   const apiKeyUpdateFetcher = useFetcher<typeof action>();
-  const { appSettings, shop } = useLoaderData<typeof loader>();
+  const { appSettings, shop, googleMapsApiKey } = useLoaderData<typeof loader>();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   
@@ -261,7 +278,7 @@ export default function Index() {
   };
   
   const [pagePath, setPagePath] = useState(getPagePathFromUrl(appSettings.storeLocatorUrl || ""));
-  const [apiKey, setApiKey] = useState(appSettings.googleMapsApiKey || "");
+  const [apiKey, setApiKey] = useState(googleMapsApiKey || "");
   const shopDomain = `https://${shop}`;
   const fullStoreLocatorUrl = pagePath ? `${shopDomain}/pages/${pagePath}` : "";
 
@@ -321,7 +338,7 @@ export default function Index() {
   const currentUrl = urlData?.storeLocatorUrl || appSettings.storeLocatorUrl;
   
   const apiKeyData = apiKeyUpdateFetcher.data && "googleMapsApiKey" in apiKeyUpdateFetcher.data ? apiKeyUpdateFetcher.data : null;
-  const currentApiKey = apiKeyData?.googleMapsApiKey || appSettings.googleMapsApiKey;
+  const currentApiKey = apiKeyData?.googleMapsApiKey || googleMapsApiKey;
 
   return (
     <Page>
