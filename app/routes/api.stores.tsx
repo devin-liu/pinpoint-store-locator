@@ -15,16 +15,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return response;
     }
     
-    // Try to match both the full domain and the subdomain
-    const shopSubdomain = shop.replace(/\.myshopify\.com$/, "");
-    
-    // Fetch stores for the shop - try both full domain and subdomain
+    // Fetch stores for the shop using the exact shop domain.
     const stores = await prisma.store.findMany({
       where: {
-        OR: [
-          { shop: shop },              // Try full domain first
-          { shop: shopSubdomain },     // Then try subdomain
-        ]
+        shop: shop,
       },
       select: {
         id: true,

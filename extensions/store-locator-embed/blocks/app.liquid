@@ -3,7 +3,7 @@
   Renders a store locator interface with search functionality and optional map
 {% endcomment %}
 
-<div id="store-locator-{{ block.id }}" class="store-locator-app" data-app-id="{{ app.id }}" data-shop="{{ shop.domain }}">
+<div id="store-locator-{{ block.id }}" class="store-locator-app" data-shop-domain="{{ shop.domain }}">
   {% if block.settings.heading != blank %}
     <h2 class="store-locator-heading">{{ block.settings.heading }}</h2>
   {% endif %}
@@ -14,8 +14,9 @@
       id="store-search-{{ block.id }}" 
       placeholder="{{ block.settings.search_placeholder }}"
       class="store-search-input"
+      disabled
     >
-    <button type="button" id="search-btn-{{ block.id }}" class="store-search-btn">Search</button>
+    <button type="button" id="search-btn-{{ block.id }}" class="store-search-btn" disabled>Search</button>
   </div>
 
   {% if block.settings.show_map %}
@@ -23,244 +24,47 @@
       id="store-map-{{ block.id }}" 
       class="store-map" 
       style="height: {{ block.settings.map_height }}px;"
-    ></div>
+    >
+      <p>Loading Map...</p>
+    </div>
   {% endif %}
 
   <div id="store-list-{{ block.id }}" class="store-list">
-    <div class="store-loading" style="display: none;">Loading stores...</div>
+    <div class="store-loading">Loading stores...</div>
     <div class="store-results"></div>
   </div>
 
   <style>
-    .store-locator-app {
-      margin: 20px 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-    
-    .store-locator-heading {
-      margin-bottom: 20px;
-      font-size: 24px;
-      font-weight: 600;
-    }
-    
-    .store-locator-search {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-    
-    .store-search-input {
-      flex: 1;
-      padding: 12px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      font-size: 16px;
-    }
-    
-    .store-search-btn {
-      padding: 12px 24px;
-      background: #007cba;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    
-    .store-search-btn:hover {
-      background: #005a87;
-    }
-    
-    .store-map {
-      margin-bottom: 20px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background: #f5f5f5;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #666;
-    }
-    
-    .store-list {
-      margin-top: 20px;
-    }
-    
-    .store-loading {
-      text-align: center;
-      padding: 20px;
-      color: #666;
-    }
-    
-    .store-item {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 16px;
-      margin-bottom: 12px;
-      background: #fff;
-    }
-    
-    .store-name {
-      font-size: 18px;
-      font-weight: 600;
-      margin-bottom: 8px;
-    }
-    
-    .store-address {
-      color: #666;
-      margin-bottom: 8px;
-    }
-    
-    .store-distance {
-      font-size: 14px;
-      color: #007cba;
-      font-weight: 500;
-    }
-    
-    .no-stores {
-      text-align: center;
-      padding: 40px 20px;
-      color: #666;
-    }
-    
-    /* Google Maps Autocomplete styling */
-    .pac-container {
-      border-radius: 4px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      border: 1px solid #ddd;
-      font-family: inherit;
-      z-index: 1000;
-    }
-    
-    .pac-item {
-      padding: 12px 16px;
-      border-bottom: 1px solid #eee;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    
-    .pac-item:hover {
-      background-color: #f5f5f5;
-    }
-    
-    .pac-item-selected {
-      background-color: #007cba;
-      color: white;
-    }
-    
-    .pac-item-query {
-      font-size: 13px;
-      padding-right: 3px;
-      color: #000;
-    }
-    
-    .pac-matched {
-      font-weight: bold;
-    }
+    .store-locator-app { margin: 20px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    .store-locator-heading { margin-bottom: 20px; font-size: 24px; font-weight: 600; }
+    .store-locator-search { display: flex; gap: 10px; margin-bottom: 20px; }
+    .store-search-input { flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+    .store-search-btn { padding: 12px 24px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+    .store-search-btn:hover { background: #005a87; }
+    .store-search-btn:disabled, .store-search-input:disabled { background-color: #f4f6f8; color: #c1c7cd; cursor: not-allowed; }
+    .store-map { margin-bottom: 20px; border: 1px solid #ddd; border-radius: 4px; background: #f5f5f5; display: flex; align-items: center; justify-content: center; color: #666; }
+    .store-list { margin-top: 20px; }
+    .store-loading { text-align: center; padding: 20px; color: #666; }
+    .store-item { border: 1px solid #ddd; border-radius: 4px; padding: 16px; margin-bottom: 12px; background: #fff; }
+    .store-name { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .store-address { color: #666; margin-bottom: 8px; }
+    .store-distance { font-size: 14px; color: #007cba; font-weight: 500; }
+    .no-stores { text-align: center; padding: 40px 20px; color: #666; }
+    .pac-container { border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border: 1px solid #ddd; font-family: inherit; z-index: 1000; }
+    .pac-item { padding: 12px 16px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 14px; }
+    .pac-item:hover { background-color: #f5f5f5; }
+    .pac-item-selected { background-color: #007cba; color: white; }
+    .pac-item-query { font-size: 13px; padding-right: 3px; color: #000; }
+    .pac-matched { font-weight: bold; }
   </style>
 </div>
 
-<!-- Preload Google Maps API if key is available -->
-{% assign google_maps_api_key = shop.metafields.app.google_maps_api_key | default: "" %}
-{% if google_maps_api_key != blank %}
-<script>
-  // Preload Google Maps API
-  window.googleMapsApiKey = '{{ google_maps_api_key }}';
-  (function() {
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initGoogleMapsCallback`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-    
-    // Global callback for when Google Maps loads
-    window.initGoogleMapsCallback = function() {
-      window.googleMapsLoaded = true;
-      document.dispatchEvent(new CustomEvent('googleMapsReady'));
-    };
-  })();
-</script>
-{% endif %}
-
-<!-- Store Locator Configuration -->
-<script>
-  window.storeLocatorConfig = {
-    appId: '{{ app.id }}',
-    shopDomain: '{{ shop.domain }}',
-    appUrl: '{{ shop.metafields.app.app_url | default: "https://adjustments-chart-kai-interview.trycloudflare.com" }}',
-    googleMapsApiKey: '{{ google_maps_api_key }}'
-  };
-</script>
-
-<!-- Preload stores data -->
-<script>
-  // Store data preloader module
-  window.StoreDataPreloader = (function() {
-    let storeData = { stores: null, loaded: false, error: null };
-    
-    function loadStores() {
-      const config = window.storeLocatorConfig;
-      return fetch(`${config.appUrl}/api/stores?shop=${config.shopDomain}`)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-          }
-          return response.json();
-        })
-        .then(stores => {
-          storeData.stores = stores;
-          storeData.loaded = true;
-          document.dispatchEvent(new CustomEvent('storesDataReady', { detail: stores }));
-          return stores;
-        })
-        .catch(error => {
-          console.error('Error loading stores:', error);
-          storeData.error = error.message || 'Failed to load stores';
-          document.dispatchEvent(new CustomEvent('storesDataReady', { detail: null }));
-          throw error;
-        });
-    }
-    
-    function getStores() {
-      return storeData.stores;
-    }
-    
-    function isLoaded() {
-      return storeData.loaded;
-    }
-    
-    function getError() {
-      return storeData.error;
-    }
-    
-    return {
-      load: loadStores,
-      getStores: getStores,
-      isLoaded: isLoaded,
-      getError: getError
-    };
-  })();
-  
-  // Initialize preloading
-  window.storeLocatorData = window.storeLocatorData || {};
-  window.StoreDataPreloader.load()
-    .then(stores => {
-      window.storeLocatorData.stores = stores;
-      window.storeLocatorData.loaded = true;
-    })
-    .catch(error => {
-      window.storeLocatorData.error = error.message;
-      window.storeLocatorData.loaded = true;
-    });
-</script>
-
 <script>
 (function() {
+  const container = document.getElementById('store-locator-{{ block.id }}');
+  const shopDomain = container.dataset.shopDomain;
   const blockId = '{{ block.id }}';
-  const appId = '{{ app.id }}';
-  const shopDomain = '{{ shop.domain }}';
   const storesPerPage = {{ block.settings.stores_per_page }};
-  const showMap = {{ block.settings.show_map }};
   
   const searchInput = document.getElementById(`store-search-${blockId}`);
   const searchBtn = document.getElementById(`search-btn-${blockId}`);
@@ -270,111 +74,90 @@
   
   let stores = [];
   let userLocation = null;
-  const config = window.storeLocatorConfig;
-  let autocomplete = null;
-  let mapsReady = false;
-  let storesReady = false;
-  
-  // Initialize Google Maps if API key is available
-  function initializeMaps() {
-    if (config.googleMapsApiKey) {
-      if (window.googleMapsLoaded && window.google && window.google.maps) {
-        mapsReady = true;
+  let config = {};
+
+  async function initializeApp() {
+    try {
+      // Step 1: Fetch settings from our new secure endpoint
+      const settingsResponse = await fetch(`/apps/pinpoint-store-locator/api/settings?shop=${shopDomain}`);
+      if (!settingsResponse.ok) throw new Error('Failed to load app configuration.');
+
+      config = await settingsResponse.json();
+
+      if (!config.storeLocatorUrl) throw new Error('App URL not configured.');
+
+      // Step 2: Load Google Maps API if a key is provided
+      if (config.googleMapsApiKey) {
+        await loadGoogleMaps(config.googleMapsApiKey);
         initializeAutocomplete();
       } else {
-        document.addEventListener('googleMapsReady', () => {
-          mapsReady = true;
-          initializeAutocomplete();
-        });
+        console.warn('Google Maps API key not configured. Search functionality will be limited.');
+        const mapContainer = document.getElementById(`store-map-${blockId}`);
+        if(mapContainer) mapContainer.innerHTML = '<p>Map is unavailable: Google Maps API key is not configured.</p>';
       }
-    } else {
-      console.warn('Google Maps API key not configured');
+
+      // Enable search inputs now that maps (or fallback) is ready
+      searchInput.disabled = false;
+      searchBtn.disabled = false;
+
+      // Step 3: Fetch the list of stores
+      const storesResponse = await fetch(`${config.storeLocatorUrl}/api/stores?shop=${shopDomain}`);
+      if (!storesResponse.ok) throw new Error('Failed to load stores.');
+
+      stores = await storesResponse.json();
+      displayStores(stores);
+
+    } catch (error) {
+      console.error('Error initializing store locator:', error);
+      showError(error.message);
+    } finally {
+      loading.style.display = 'none';
     }
   }
-  
-  // Initialize autocomplete on search input
+
+  function loadGoogleMaps(apiKey) {
+    return new Promise((resolve, reject) => {
+      window.initGoogleMapsCallback = () => {
+        resolve();
+        delete window.initGoogleMapsCallback;
+      };
+
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGoogleMapsCallback`;
+      script.async = true;
+      script.onerror = () => {
+        reject(new Error('Failed to load Google Maps script.'));
+        delete window.initGoogleMapsCallback;
+      };
+      document.head.appendChild(script);
+    });
+  }
+
   function initializeAutocomplete() {
-    if (!window.google || !window.google.maps || !window.google.maps.places) {
+    if (!window.google || !window.google.maps.places) {
       console.error('Google Maps Places API not loaded');
       return;
     }
     
-    autocomplete = new google.maps.places.Autocomplete(searchInput, {
+    const autocomplete = new google.maps.places.Autocomplete(searchInput, {
       types: ['geocode', 'establishment'],
-      fields: ['place_id', 'geometry', 'name', 'formatted_address']
+      fields: ['geometry', 'name']
     });
     
     autocomplete.addListener('place_changed', () => {
       const place = autocomplete.getPlace();
       if (place.geometry && place.geometry.location) {
-        const lat = place.geometry.location.lat();
-        const lng = place.geometry.location.lng();
-        userLocation = { lat, lng };
-        searchStoresByLocation(lat, lng);
+        userLocation = {
+          lat: place.geometry.location.lat(),
+          lng: place.geometry.location.lng()
+        };
+        searchStoresByLocation(userLocation.lat, userLocation.lng);
       }
     });
   }
 
-  // Load stores from preloaded data or fetch if not available
-  function loadStores() {
-    if (window.storeLocatorData && window.storeLocatorData.loaded) {
-      storesReady = true;
-      if (window.storeLocatorData.stores) {
-        stores = window.storeLocatorData.stores;
-        displayStores(stores);
-      } else if (window.storeLocatorData.error) {
-        showError(`Store loading error: ${window.storeLocatorData.error}`);
-      }
-    } else {
-      loading.style.display = 'block';
-      
-      // Set up event listener for preloaded data
-      const handleStoresReady = (event) => {
-        storesReady = true;
-        if (event.detail && Array.isArray(event.detail)) {
-          stores = event.detail;
-          displayStores(stores);
-        } else if (window.storeLocatorData.error) {
-          showError(`Store loading error: ${window.storeLocatorData.error}`);
-        }
-        loading.style.display = 'none';
-        document.removeEventListener('storesDataReady', handleStoresReady);
-      };
-      
-      document.addEventListener('storesDataReady', handleStoresReady);
-      
-      // Fallback: if preloading hasn't completed after 3 seconds, fetch directly
-      setTimeout(() => {
-        if (!storesReady) {
-          console.warn('Preloaded data not available, fetching stores directly');
-          document.removeEventListener('storesDataReady', handleStoresReady);
-          fallbackLoadStores();
-        }
-      }, 3000);
-    }
-  }
-  
-  // Fallback function to load stores directly if preloading fails
-  async function fallbackLoadStores() {
-    try {
-      const response = await fetch(`${config.appUrl}/api/stores?shop=${config.shopDomain}`);
-      if (response.ok) {
-        stores = await response.json();
-        storesReady = true;
-        displayStores(stores);
-      } else {
-        showError(`Failed to load stores (${response.status}: ${response.statusText})`);
-      }
-    } catch (error) {
-      showError('Error loading stores: ' + error.message);
-    } finally {
-      loading.style.display = 'none';
-    }
-  }
-  
-  // Display stores in the list
   function displayStores(storesToShow) {
-    if (storesToShow.length === 0) {
+    if (!storesToShow || storesToShow.length === 0) {
       results.innerHTML = '<div class="no-stores">No stores found</div>';
       return;
     }
@@ -395,68 +178,42 @@
     results.innerHTML = storeHTML;
   }
   
-  // Search stores by location coordinates  
   function searchStoresByLocation(lat, lng) {
-    try {
-      loading.style.display = 'block';
-      
-      // Calculate distances and sort by proximity
-      const storesWithDistance = stores.map(store => {
-        if (store.latitude && store.longitude) {
-          const distance = calculateDistance(lat, lng, store.latitude, store.longitude);
-          return { ...store, distance: distance.toFixed(1) };
-        }
-        return store;
-      }).sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
-      
-      displayStores(storesWithDistance);
-    } catch (error) {
-      console.error('Location search error:', error);
-      displayStores(stores);
-    } finally {
-      loading.style.display = 'none';
-    }
+    const storesWithDistance = stores.map(store => {
+      if (store.latitude && store.longitude) {
+        const distance = calculateDistance(lat, lng, store.latitude, store.longitude);
+        return { ...store, distance: distance.toFixed(1) };
+      }
+      return store;
+    }).sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+
+    displayStores(storesWithDistance);
   }
 
-  // Search stores by location
   async function searchStores(query) {
     if (!query.trim()) {
-      displayStores(stores);
+      displayStores(stores); // Reset to full list if search is cleared
       return;
     }
     
-    // Only use Google Maps Geocoding API for search
     if (!config.googleMapsApiKey || !window.google || !window.google.maps) {
-      showError('Google Maps API is required for location search');
+      showError('Location search is not available without a Google Maps API key.');
       return;
     }
     
-    try {
-      loading.style.display = 'block';
-      
-      const geocoder = new google.maps.Geocoder();
-      geocoder.geocode({ address: query }, (results, status) => {
-        if (status === 'OK' && results[0]) {
-          const location = results[0].geometry.location;
-          const lat = location.lat();
-          const lng = location.lng();
-          userLocation = { lat, lng };
-          searchStoresByLocation(lat, lng);
-        } else {
-          showError('Location not found. Please try a different search term.');
-          loading.style.display = 'none';
-        }
-      });
-    } catch (error) {
-      console.error('Geocoding error:', error);
-      showError('Error searching for location');
-      loading.style.display = 'none';
-    }
+    const geocoder = new google.maps.Geocoder();
+    geocoder.geocode({ address: query }, (results, status) => {
+      if (status === 'OK' && results[0]) {
+        const location = results[0].geometry.location;
+        searchStoresByLocation(location.lat(), location.lng());
+      } else {
+        showError('Location not found. Please try a different search term.');
+      }
+    });
   }
   
-  // Calculate distance between two coordinates (Haversine formula)
   function calculateDistance(lat1, lon1, lat2, lon2) {
-    const R = 3959; // Earth's radius in miles
+    const R = 3959; // Radius of the Earth in miles
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -466,36 +223,24 @@
     return R * c;
   }
   
-  // Escape HTML to prevent XSS
   function escapeHtml(text) {
+    if (text === null || typeof text === 'undefined') return '';
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
   }
   
-  // Show error message
   function showError(message) {
     results.innerHTML = `<div class="no-stores">Error: ${escapeHtml(message)}</div>`;
   }
   
   // Event listeners
-  searchBtn.addEventListener('click', () => {
-    searchStores(searchInput.value);
-  });
-  
+  searchBtn.addEventListener('click', () => searchStores(searchInput.value));
   searchInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      searchStores(searchInput.value);
-    }
+    if (e.key === 'Enter') searchStores(searchInput.value);
   });
   
-  // Initialize with proper sequencing
-  function initializeApp() {
-    loadStores();
-    initializeMaps();
-  }
-  
-  // Check if DOM is ready
+  // Initialize
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initializeApp);
   } else {

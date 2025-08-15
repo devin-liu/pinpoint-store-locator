@@ -33,15 +33,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
   const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
+  const storeLocatorUrl = process.env.SHOPIFY_APP_URL;
 
   const settings = await db.appSettings.upsert({
     where: { shop: session.shop },
     update: {
       googleMapsApiKey,
+      storeLocatorUrl,
     },
     create: {
       shop: session.shop,
       googleMapsApiKey,
+      storeLocatorUrl,
     },
   });
 
