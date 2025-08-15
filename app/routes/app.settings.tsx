@@ -17,50 +17,117 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+
+const METAFIELD_NAMESPACE = "$app:google_maps";
+const METAFIELD_KEY = "api_key";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  
-  const settings = await db.appSettings.findUnique({
-    where: { shop: session.shop },
-  });
+  const { admin, session } = await authenticate.admin(request);
 
-  return json({ settings });
+  const response = await admin.graphql(
+    `#graphql
+    query getShopMetafield($ownerId: ID!) {
+      shop(id: $ownerId) {
+        metafield(namespace: "${METAFIELD_NAMESPACE}", key: "${METAFIELD_KEY}") {
+          value
+        }
+      }
+    }`,
+    {
+      variables: {
+        ownerId: session.id,
+      },
+    }
+  );
+
+  const responseJson = await response.json();
+  const googleMapsApiKey = responseJson.data.shop.metafield?.value || "";
+
+  return json({ googleMapsApiKey });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
 
-  const settings = await db.appSettings.upsert({
-    where: { shop: session.shop },
-    update: {
-      googleMapsApiKey,
-    },
-    create: {
-      shop: session.shop,
-      googleMapsApiKey,
-    },
-  });
+  // 1. Create the metafield definition
+  await admin.graphql(
+    `#graphql
+    mutation metafieldDefinitionCreate($definition: MetafieldDefinitionInput!) {
+      metafieldDefinitionCreate(definition: $definition) {
+        createdDefinition {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    {
+      variables: {
+        definition: {
+          name: "Google Maps API Key",
+          key: METAFIELD_KEY,
+          description: "API key for Google Maps integration",
+          type: "single_line_text_field",
+          ownerType: "SHOP",
+          namespace: METAFIELD_NAMESPACE,
+        },
+      },
+    }
+  );
 
-  return json({ success: true, settings });
+  // 2. Set the metafield value
+  const response = await admin.graphql(
+    `#graphql
+    mutation metaflieldsSet($metafields: [MetafieldsSetInput!]!) {
+      metafieldsSet(metafields: $metafields) {
+        metafields {
+          id
+          value
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }`,
+    {
+      variables: {
+        metafields: [
+          {
+            namespace: METAFIELD_NAMESPACE,
+            key: METAFIELD_KEY,
+            type: "single_line_text_field",
+            value: googleMapsApiKey,
+            ownerId: session.id,
+          },
+        ],
+      },
+    }
+  );
+
+  const responseJson = await response.json();
+
+  return json({
+    success: responseJson.data.metafieldsSet.userErrors.length === 0,
+    errors: responseJson.data.metafieldsSet.userErrors,
+  });
 };
 
 export default function Settings() {
-  const { settings } = useLoaderData<typeof loader>();
+  const { googleMapsApiKey: initialApiKey } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
-  
-  const [googleMapsApiKey, setGoogleMapsApiKey] = useState(
-    settings?.googleMapsApiKey || ""
-  );
+
+  const [googleMapsApiKey, setGoogleMapsApiKey] = useState(initialApiKey);
   const [showToast, setShowToast] = useState(false);
 
   const handleSubmit = useCallback(() => {
     const formData = new FormData();
     formData.append("googleMapsApiKey", googleMapsApiKey);
-    
+
     fetcher.submit(formData, { method: "POST" });
     setShowToast(true);
   }, [googleMapsApiKey, fetcher]);
@@ -68,9 +135,9 @@ export default function Settings() {
   const isLoading = fetcher.state === "submitting";
 
   const toastMarkup = showToast ? (
-    <Toast 
-      content="Settings saved successfully" 
-      onDismiss={() => setShowToast(false)} 
+    <Toast
+      content="Settings saved successfully"
+      onDismiss={() => setShowToast(false)}
     />
   ) : null;
 
@@ -78,7 +145,7 @@ export default function Settings() {
     <Frame>
       <Page>
         <TitleBar title="App Settings" />
-        
+
         <Layout>
           <Layout.Section>
             <Card>
@@ -87,12 +154,12 @@ export default function Settings() {
                   Google Maps Configuration
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
-                  Configure your Google Maps API key to enable geocoding and map features 
+                  Configure your Google Maps API key to enable geocoding and map features
                   for your store locator.
                 </Text>
-                
+
                 <Divider />
-                
+
                 <FormLayout>
                   <TextField
                     label="Google Maps API Key"
@@ -102,7 +169,7 @@ export default function Settings() {
                     type="password"
                     helpText="Enter your Google Maps API key. This will be used for geocoding addresses and displaying maps."
                   />
-                  
+
                   <Button
                     variant="primary"
                     onClick={handleSubmit}
@@ -121,7 +188,7 @@ export default function Settings() {
                   <Text as="p" variant="bodyMd">
                     To get a Google Maps API key:
                   </Text>
-                  <Text as="ol" variant="bodyMd">
+                  <Text as="ol">
                     <li>1. Go to the Google Cloud Console</li>
                     <li>2. Create a new project or select an existing one</li>
                     <li>3. Enable the Maps JavaScript API and Geocoding API</li>
@@ -129,9 +196,9 @@ export default function Settings() {
                     <li>5. Restrict the API key to your domain for security</li>
                   </Text>
                   <Text as="p" variant="bodyMd" tone="subdued">
-                    <a 
-                      href="https://developers.google.com/maps/documentation/javascript/get-api-key" 
-                      target="_blank" 
+                    <a
+                      href="https://developers.google.com/maps/documentation/javascript/get-api-key"
+                      target="_blank"
                       rel="noopener noreferrer"
                     >
                       View detailed instructions →

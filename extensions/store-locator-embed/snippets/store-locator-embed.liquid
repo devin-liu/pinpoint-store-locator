@@ -4,6 +4,8 @@
   Usage: {% render 'store-locator-embed' %}
 {% endcomment %}
 
+<script src="https://maps.googleapis.com/maps/api/js?key={{ shop.metafields.$app:google_maps.api_key.value }}&callback=initMap" async defer></script>
+
 <script>
   // Store Locator Floating Button
   (function() {
