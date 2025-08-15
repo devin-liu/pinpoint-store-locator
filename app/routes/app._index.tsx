@@ -35,8 +35,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  // Set app metafield to enable the store locator embed block
+  // Set app metafields to enable the store locator embed block and pass Google Maps API key
   try {
+    const metafields = [
+      {
+        namespace: "availability",
+        key: "store_locator",
+        type: "boolean",
+        value: "true",
+      },
+    ];
+
+    // Add Google Maps API key metafield if available
+    if (appSettings.googleMapsApiKey) {
+      metafields.push({
+        namespace: "app",
+        key: "google_maps_api_key",
+        type: "single_line_text_field",
+        value: appSettings.googleMapsApiKey,
+      });
+    }
+
+    // Add app URL metafield for API calls
+    metafields.push({
+      namespace: "app",
+      key: "app_url",
+      type: "single_line_text_field",
+      value: process.env.SHOPIFY_APP_URL || "https://adjustments-chart-kai-interview.trycloudflare.com",
+    });
+
     await admin.graphql(`
       #graphql
       mutation appInstallationMetafieldsSet($metafields: [AppInstallationMetafieldInput!]!) {
@@ -54,16 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
       }
     `, {
-      variables: {
-        metafields: [
-          {
-            namespace: "availability",
-            key: "store_locator",
-            type: "boolean",
-            value: "true",
-          },
-        ],
-      },
+      variables: { metafields },
     });
   } catch (error) {
     console.error("Error setting app metafield:", error);
@@ -87,6 +105,69 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     return json({ success: true, storeLocatorUrl });
+  }
+
+  if (intent === "updateGoogleMapsApiKey") {
+    const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
+
+    await prisma.appSettings.upsert({
+      where: { shop: session.shop },
+      update: { googleMapsApiKey },
+      create: { shop: session.shop, googleMapsApiKey },
+    });
+
+    // Update the metafield with the new API key
+    try {
+      const metafields = [
+        {
+          namespace: "availability",
+          key: "store_locator",
+          type: "boolean",
+          value: "true",
+        },
+      ];
+
+      if (googleMapsApiKey) {
+        metafields.push({
+          namespace: "app",
+          key: "google_maps_api_key",
+          type: "single_line_text_field",
+          value: googleMapsApiKey,
+        });
+      }
+
+      // Always add app URL metafield
+      metafields.push({
+        namespace: "app",
+        key: "app_url",
+        type: "single_line_text_field",
+        value: process.env.SHOPIFY_APP_URL || "https://adjustments-chart-kai-interview.trycloudflare.com",
+      });
+
+      await admin.graphql(`
+        #graphql
+        mutation appInstallationMetafieldsSet($metafields: [AppInstallationMetafieldInput!]!) {
+          appInstallationMetafieldsSet(metafields: $metafields) {
+            appInstallationMetafields {
+              id
+              key
+              namespace
+              value
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `, {
+        variables: { metafields },
+      });
+    } catch (error) {
+      console.error("Error updating Google Maps API key metafield:", error);
+    }
+
+    return json({ success: true, googleMapsApiKey });
   }
 
   const color = ["Red", "Orange", "Yellow", "Green"][
@@ -159,8 +240,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Index() {
   const fetcher = useFetcher<typeof action>();
   const urlUpdateFetcher = useFetcher<typeof action>();
+  const apiKeyUpdateFetcher = useFetcher<typeof action>();
   const { appSettings, shop } = useLoaderData<typeof loader>();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   
   // Extract page path from existing URL or default to empty
   const getPagePathFromUrl = (url: string) => {
@@ -178,16 +261,17 @@ export default function Index() {
   };
   
   const [pagePath, setPagePath] = useState(getPagePathFromUrl(appSettings.storeLocatorUrl || ""));
+  const [apiKey, setApiKey] = useState(appSettings.googleMapsApiKey || "");
   const shopDomain = `https://${shop}`;
   const fullStoreLocatorUrl = pagePath ? `${shopDomain}/pages/${pagePath}` : "";
 
   const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
   const isUrlUpdateLoading =
     ["loading", "submitting"].includes(urlUpdateFetcher.state) &&
     urlUpdateFetcher.formMethod === "POST";
+  const isApiKeyUpdateLoading =
+    ["loading", "submitting"].includes(apiKeyUpdateFetcher.state) &&
+    apiKeyUpdateFetcher.formMethod === "POST";
 
   const productData = fetcher.data && "product" in fetcher.data ? fetcher.data : null;
   const productId = productData?.product?.id.replace(
@@ -209,6 +293,14 @@ export default function Index() {
     }
   }, [urlUpdateFetcher.data, shopify]);
 
+  useEffect(() => {
+    const apiKeyData = apiKeyUpdateFetcher.data && "success" in apiKeyUpdateFetcher.data ? apiKeyUpdateFetcher.data : null;
+    if (apiKeyData?.success) {
+      shopify.toast.show("Google Maps API key updated successfully");
+      setIsApiKeyModalOpen(false);
+    }
+  }, [apiKeyUpdateFetcher.data, shopify]);
+
   const generateProduct = () => fetcher.submit({}, { method: "POST" });
 
   const handleUrlUpdate = () => {
@@ -218,8 +310,18 @@ export default function Index() {
     );
   };
 
+  const handleApiKeyUpdate = () => {
+    apiKeyUpdateFetcher.submit(
+      { intent: "updateGoogleMapsApiKey", googleMapsApiKey: apiKey },
+      { method: "POST" }
+    );
+  };
+
   const urlData = urlUpdateFetcher.data && "storeLocatorUrl" in urlUpdateFetcher.data ? urlUpdateFetcher.data : null;
   const currentUrl = urlData?.storeLocatorUrl || appSettings.storeLocatorUrl;
+  
+  const apiKeyData = apiKeyUpdateFetcher.data && "googleMapsApiKey" in apiKeyUpdateFetcher.data ? apiKeyUpdateFetcher.data : null;
+  const currentApiKey = apiKeyData?.googleMapsApiKey || appSettings.googleMapsApiKey;
 
   return (
     <Page>
@@ -256,6 +358,21 @@ export default function Index() {
                   </InlineStack>
                 </BlockStack>
               </Card>
+              <Card>
+                <BlockStack gap="200">
+                  <Text as="h2" variant="headingMd">
+                    Google Maps Configuration
+                  </Text>
+                  <Text variant="bodyMd" as="p">
+                    {currentApiKey ? "Google Maps API key is configured" : "Google Maps API key is not configured"}
+                  </Text>
+                  <InlineStack gap="300">
+                    <Button onClick={() => setIsApiKeyModalOpen(true)}>
+                      {currentApiKey ? "Update API Key" : "Add API Key"}
+                    </Button>
+                  </InlineStack>
+                </BlockStack>
+              </Card>
             </BlockStack>
           </Layout.Section>
         </Layout>
@@ -285,6 +402,34 @@ export default function Index() {
             prefix={`${shopDomain}/pages/`}
             helpText="Enter the page name after /pages/ - your store domain is automatically included"
             autoComplete="off"
+          />
+        </Modal.Section>
+      </Modal>
+      <Modal
+        open={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
+        title="Configure Google Maps API Key"
+        primaryAction={{
+          content: "Save",
+          onAction: handleApiKeyUpdate,
+          loading: isApiKeyUpdateLoading,
+        }}
+        secondaryActions={[
+          {
+            content: "Cancel",
+            onAction: () => setIsApiKeyModalOpen(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <TextField
+            label="Google Maps API Key"
+            value={apiKey}
+            onChange={setApiKey}
+            placeholder="AIzaSy..."
+            helpText="Enter your Google Maps API key to enable location search and autocomplete features"
+            autoComplete="off"
+            type="password"
           />
         </Modal.Section>
       </Modal>

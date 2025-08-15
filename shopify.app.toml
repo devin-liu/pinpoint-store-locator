@@ -3,30 +3,30 @@
 client_id = "7d52cfcd5586fa5a86a67301539b3de2"
 name = "pinpoint-store-locator"
 handle = "pinpoint-store-locator"
-application_url = "https://filtering-theoretical-ranch-birth.trycloudflare.com"
+application_url = "https://adjustments-chart-kai-interview.trycloudflare.com"
 embedded = true
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-07"
 
   [[webhooks.subscriptions]]
-  topics = [ "app/uninstalled" ]
-  uri = "/webhooks/app/uninstalled"
-
-  [[webhooks.subscriptions]]
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_themes"
+scopes = "read_themes,write_products"
 
 [auth]
-redirect_urls = ["https://filtering-theoretical-ranch-birth.trycloudflare.com/auth/callback", "https://filtering-theoretical-ranch-birth.trycloudflare.com/auth/shopify/callback", "https://filtering-theoretical-ranch-birth.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://adjustments-chart-kai-interview.trycloudflare.com/auth/callback", "https://adjustments-chart-kai-interview.trycloudflare.com/auth/shopify/callback", "https://adjustments-chart-kai-interview.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

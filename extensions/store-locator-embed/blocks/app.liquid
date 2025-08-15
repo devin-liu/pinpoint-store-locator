@@ -122,8 +122,137 @@
       padding: 40px 20px;
       color: #666;
     }
+    
+    /* Google Maps Autocomplete styling */
+    .pac-container {
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border: 1px solid #ddd;
+      font-family: inherit;
+      z-index: 1000;
+    }
+    
+    .pac-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    .pac-item:hover {
+      background-color: #f5f5f5;
+    }
+    
+    .pac-item-selected {
+      background-color: #007cba;
+      color: white;
+    }
+    
+    .pac-item-query {
+      font-size: 13px;
+      padding-right: 3px;
+      color: #000;
+    }
+    
+    .pac-matched {
+      font-weight: bold;
+    }
   </style>
 </div>
+
+<!-- Preload Google Maps API if key is available -->
+{% assign google_maps_api_key = shop.metafields.app.google_maps_api_key | default: "" %}
+{% if google_maps_api_key != blank %}
+<script>
+  // Preload Google Maps API
+  window.googleMapsApiKey = '{{ google_maps_api_key }}';
+  (function() {
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initGoogleMapsCallback`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+    
+    // Global callback for when Google Maps loads
+    window.initGoogleMapsCallback = function() {
+      window.googleMapsLoaded = true;
+      document.dispatchEvent(new CustomEvent('googleMapsReady'));
+    };
+  })();
+</script>
+{% endif %}
+
+<!-- Store Locator Configuration -->
+<script>
+  window.storeLocatorConfig = {
+    appId: '{{ app.id }}',
+    shopDomain: '{{ shop.domain }}',
+    appUrl: '{{ shop.metafields.app.app_url | default: "https://adjustments-chart-kai-interview.trycloudflare.com" }}',
+    googleMapsApiKey: '{{ google_maps_api_key }}'
+  };
+</script>
+
+<!-- Preload stores data -->
+<script>
+  // Store data preloader module
+  window.StoreDataPreloader = (function() {
+    let storeData = { stores: null, loaded: false, error: null };
+    
+    function loadStores() {
+      const config = window.storeLocatorConfig;
+      return fetch(`${config.appUrl}/api/stores?shop=${config.shopDomain}`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(stores => {
+          storeData.stores = stores;
+          storeData.loaded = true;
+          document.dispatchEvent(new CustomEvent('storesDataReady', { detail: stores }));
+          return stores;
+        })
+        .catch(error => {
+          console.error('Error loading stores:', error);
+          storeData.error = error.message || 'Failed to load stores';
+          document.dispatchEvent(new CustomEvent('storesDataReady', { detail: null }));
+          throw error;
+        });
+    }
+    
+    function getStores() {
+      return storeData.stores;
+    }
+    
+    function isLoaded() {
+      return storeData.loaded;
+    }
+    
+    function getError() {
+      return storeData.error;
+    }
+    
+    return {
+      load: loadStores,
+      getStores: getStores,
+      isLoaded: isLoaded,
+      getError: getError
+    };
+  })();
+  
+  // Initialize preloading
+  window.storeLocatorData = window.storeLocatorData || {};
+  window.StoreDataPreloader.load()
+    .then(stores => {
+      window.storeLocatorData.stores = stores;
+      window.storeLocatorData.loaded = true;
+    })
+    .catch(error => {
+      window.storeLocatorData.error = error.message;
+      window.storeLocatorData.loaded = true;
+    });
+</script>
 
 <script>
 (function() {
@@ -141,19 +270,100 @@
   
   let stores = [];
   let userLocation = null;
+  const config = window.storeLocatorConfig;
+  let autocomplete = null;
+  let mapsReady = false;
+  let storesReady = false;
   
-  // Load stores from the app
-  async function loadStores() {
-    try {
+  // Initialize Google Maps if API key is available
+  function initializeMaps() {
+    if (config.googleMapsApiKey) {
+      if (window.googleMapsLoaded && window.google && window.google.maps) {
+        mapsReady = true;
+        initializeAutocomplete();
+      } else {
+        document.addEventListener('googleMapsReady', () => {
+          mapsReady = true;
+          initializeAutocomplete();
+        });
+      }
+    } else {
+      console.warn('Google Maps API key not configured');
+    }
+  }
+  
+  // Initialize autocomplete on search input
+  function initializeAutocomplete() {
+    if (!window.google || !window.google.maps || !window.google.maps.places) {
+      console.error('Google Maps Places API not loaded');
+      return;
+    }
+    
+    autocomplete = new google.maps.places.Autocomplete(searchInput, {
+      types: ['geocode', 'establishment'],
+      fields: ['place_id', 'geometry', 'name', 'formatted_address']
+    });
+    
+    autocomplete.addListener('place_changed', () => {
+      const place = autocomplete.getPlace();
+      if (place.geometry && place.geometry.location) {
+        const lat = place.geometry.location.lat();
+        const lng = place.geometry.location.lng();
+        userLocation = { lat, lng };
+        searchStoresByLocation(lat, lng);
+      }
+    });
+  }
+
+  // Load stores from preloaded data or fetch if not available
+  function loadStores() {
+    if (window.storeLocatorData && window.storeLocatorData.loaded) {
+      storesReady = true;
+      if (window.storeLocatorData.stores) {
+        stores = window.storeLocatorData.stores;
+        displayStores(stores);
+      } else if (window.storeLocatorData.error) {
+        showError(`Store loading error: ${window.storeLocatorData.error}`);
+      }
+    } else {
       loading.style.display = 'block';
-      // Use the app's configured URL from shopify.app.toml
-      const appUrl = '{{ app.id | app_url }}';
-      const response = await fetch(`${appUrl}/api/stores?shop=${shopDomain}`);
+      
+      // Set up event listener for preloaded data
+      const handleStoresReady = (event) => {
+        storesReady = true;
+        if (event.detail && Array.isArray(event.detail)) {
+          stores = event.detail;
+          displayStores(stores);
+        } else if (window.storeLocatorData.error) {
+          showError(`Store loading error: ${window.storeLocatorData.error}`);
+        }
+        loading.style.display = 'none';
+        document.removeEventListener('storesDataReady', handleStoresReady);
+      };
+      
+      document.addEventListener('storesDataReady', handleStoresReady);
+      
+      // Fallback: if preloading hasn't completed after 3 seconds, fetch directly
+      setTimeout(() => {
+        if (!storesReady) {
+          console.warn('Preloaded data not available, fetching stores directly');
+          document.removeEventListener('storesDataReady', handleStoresReady);
+          fallbackLoadStores();
+        }
+      }, 3000);
+    }
+  }
+  
+  // Fallback function to load stores directly if preloading fails
+  async function fallbackLoadStores() {
+    try {
+      const response = await fetch(`${config.appUrl}/api/stores?shop=${config.shopDomain}`);
       if (response.ok) {
         stores = await response.json();
+        storesReady = true;
         displayStores(stores);
       } else {
-        showError('Failed to load stores');
+        showError(`Failed to load stores (${response.status}: ${response.statusText})`);
       }
     } catch (error) {
       showError('Error loading stores: ' + error.message);
@@ -185,6 +395,29 @@
     results.innerHTML = storeHTML;
   }
   
+  // Search stores by location coordinates  
+  function searchStoresByLocation(lat, lng) {
+    try {
+      loading.style.display = 'block';
+      
+      // Calculate distances and sort by proximity
+      const storesWithDistance = stores.map(store => {
+        if (store.latitude && store.longitude) {
+          const distance = calculateDistance(lat, lng, store.latitude, store.longitude);
+          return { ...store, distance: distance.toFixed(1) };
+        }
+        return store;
+      }).sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+      
+      displayStores(storesWithDistance);
+    } catch (error) {
+      console.error('Location search error:', error);
+      displayStores(stores);
+    } finally {
+      loading.style.display = 'none';
+    }
+  }
+
   // Search stores by location
   async function searchStores(query) {
     if (!query.trim()) {
@@ -192,44 +425,31 @@
       return;
     }
     
+    // Only use Google Maps Geocoding API for search
+    if (!config.googleMapsApiKey || !window.google || !window.google.maps) {
+      showError('Google Maps API is required for location search');
+      return;
+    }
+    
     try {
       loading.style.display = 'block';
       
-      // Get user location coordinates from the query (using a geocoding service)
-      const geocodeResponse = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-      const geocodeData = await geocodeResponse.json();
-      
-      if (geocodeData.length > 0) {
-        const userLat = parseFloat(geocodeData[0].lat);
-        const userLon = parseFloat(geocodeData[0].lon);
-        
-        // Calculate distances and sort by proximity
-        const storesWithDistance = stores.map(store => {
-          if (store.latitude && store.longitude) {
-            const distance = calculateDistance(userLat, userLon, store.latitude, store.longitude);
-            return { ...store, distance: distance.toFixed(1) };
-          }
-          return store;
-        }).sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
-        
-        displayStores(storesWithDistance);
-      } else {
-        // Fallback to text search
-        const filtered = stores.filter(store => 
-          store.name.toLowerCase().includes(query.toLowerCase()) ||
-          store.address.toLowerCase().includes(query.toLowerCase())
-        );
-        displayStores(filtered);
-      }
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: query }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          const location = results[0].geometry.location;
+          const lat = location.lat();
+          const lng = location.lng();
+          userLocation = { lat, lng };
+          searchStoresByLocation(lat, lng);
+        } else {
+          showError('Location not found. Please try a different search term.');
+          loading.style.display = 'none';
+        }
+      });
     } catch (error) {
-      console.error('Search error:', error);
-      // Fallback to text search
-      const filtered = stores.filter(store => 
-        store.name.toLowerCase().includes(query.toLowerCase()) ||
-        store.address.toLowerCase().includes(query.toLowerCase())
-      );
-      displayStores(filtered);
-    } finally {
+      console.error('Geocoding error:', error);
+      showError('Error searching for location');
       loading.style.display = 'none';
     }
   }
@@ -269,8 +489,18 @@
     }
   });
   
-  // Initialize
-  loadStores();
+  // Initialize with proper sequencing
+  function initializeApp() {
+    loadStores();
+    initializeMaps();
+  }
+  
+  // Check if DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+  } else {
+    initializeApp();
+  }
 })();
 </script>
 
