@@ -12,7 +12,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return response;
   }
 
-  const settings = await db.appSettings.findUnique({
+  let settings = await db.appSettings.findUnique({
     where: { shop },
     select: {
       googleMapsApiKey: true,
@@ -20,10 +20,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
   });
 
+  // If no settings are found, provide a default configuration.
+  // This allows the app to function before it's configured by the merchant.
   if (!settings) {
-    const response = json({ error: "Settings not found for this shop" }, { status: 404 });
-    response.headers.set("Access-Control-Allow-Origin", "*");
-    return response;
+    settings = {
+      googleMapsApiKey: null,
+      storeLocatorUrl: process.env.SHOPIFY_APP_URL || null,
+    };
   }
 
   const response = json(settings);
