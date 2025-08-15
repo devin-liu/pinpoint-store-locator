@@ -19,6 +19,7 @@ import {
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { getGoogleMapsApiKey, setGoogleMapsApiKey } from "../metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -35,6 +36,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
+  // Get Google Maps API key from merchant-owned metafields
+  const googleMapsApiKey = await getGoogleMapsApiKey(admin);
+
   // Set app metafields to enable the store locator embed block and pass Google Maps API key
   try {
     const metafields = [
@@ -46,13 +50,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       },
     ];
 
-    // Add Google Maps API key metafield if available
-    if (appSettings.googleMapsApiKey) {
+    // Add Google Maps API key metafield if available from merchant metafields
+    if (googleMapsApiKey) {
       metafields.push({
         namespace: "app",
         key: "google_maps_api_key",
         type: "single_line_text_field",
-        value: appSettings.googleMapsApiKey,
+        value: googleMapsApiKey,
       });
     }
 
@@ -87,7 +91,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Error setting app metafield:", error);
   }
 
-  return json({ appSettings, shop: session.shop });
+  return json({ appSettings: { ...appSettings, googleMapsApiKey }, shop: session.shop });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -110,13 +114,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "updateGoogleMapsApiKey") {
     const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
 
-    await prisma.appSettings.upsert({
-      where: { shop: session.shop },
-      update: { googleMapsApiKey },
-      create: { shop: session.shop, googleMapsApiKey },
-    });
+    // Save to merchant-owned metafields instead of database
+    const success = await setGoogleMapsApiKey(admin, googleMapsApiKey);
+    
+    if (!success) {
+      return json({ success: false, error: "Failed to save API key" }, { status: 500 });
+    }
 
-    // Update the metafield with the new API key
+    // Update the app installation metafield with the new API key for theme access
     try {
       const metafields = [
         {

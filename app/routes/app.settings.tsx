@@ -17,43 +17,36 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { authenticate } from "../shopify.server";
-import db from "../db.server";
+import { getGoogleMapsApiKey, setGoogleMapsApiKey } from "../metafields.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   
-  const settings = await db.appSettings.findUnique({
-    where: { shop: session.shop },
-  });
+  const googleMapsApiKey = await getGoogleMapsApiKey(admin);
 
-  return json({ settings });
+  return json({ googleMapsApiKey });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const googleMapsApiKey = formData.get("googleMapsApiKey") as string;
 
-  const settings = await db.appSettings.upsert({
-    where: { shop: session.shop },
-    update: {
-      googleMapsApiKey,
-    },
-    create: {
-      shop: session.shop,
-      googleMapsApiKey,
-    },
-  });
+  const success = await setGoogleMapsApiKey(admin, googleMapsApiKey);
 
-  return json({ success: true, settings });
+  if (!success) {
+    return json({ success: false, error: "Failed to save API key" }, { status: 500 });
+  }
+
+  return json({ success: true, googleMapsApiKey });
 };
 
 export default function Settings() {
-  const { settings } = useLoaderData<typeof loader>();
+  const { googleMapsApiKey: initialApiKey } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   
   const [googleMapsApiKey, setGoogleMapsApiKey] = useState(
-    settings?.googleMapsApiKey || ""
+    initialApiKey || ""
   );
   const [showToast, setShowToast] = useState(false);
 
@@ -88,7 +81,7 @@ export default function Settings() {
                 </Text>
                 <Text as="p" variant="bodyMd" tone="subdued">
                   Configure your Google Maps API key to enable geocoding and map features 
-                  for your store locator.
+                  for your store locator. This API key is stored securely in your shop's metafields.
                 </Text>
                 
                 <Divider />
