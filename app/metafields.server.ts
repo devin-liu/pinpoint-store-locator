@@ -8,6 +8,8 @@ const GOOGLE_MAPS_KEY = "google_maps_api_key";
  */
 export async function getGoogleMapsApiKey(admin: AdminApiContext): Promise<string | null> {
   try {
+    console.log(`Debug: Querying metafield ${GOOGLE_MAPS_NAMESPACE}.${GOOGLE_MAPS_KEY}`);
+    
     const response = await admin.graphql(`
       #graphql
       query getGoogleMapsApiKey {
@@ -20,7 +22,12 @@ export async function getGoogleMapsApiKey(admin: AdminApiContext): Promise<strin
     `);
 
     const data = await response.json();
-    return data?.data?.shop?.metafield?.value || null;
+    console.log("Debug: Metafield query response:", JSON.stringify(data, null, 2));
+    
+    const apiKey = data?.data?.shop?.metafield?.value || null;
+    console.log("Debug: Extracted API key:", apiKey ? "***REDACTED***" : "null");
+    
+    return apiKey;
   } catch (error) {
     console.error("Error getting Google Maps API key from metafields:", error);
     return null;

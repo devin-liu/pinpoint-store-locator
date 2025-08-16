@@ -38,6 +38,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Get Google Maps API key from merchant-owned metafields
   const googleMapsApiKey = await getGoogleMapsApiKey(admin);
+  
+  console.log("Debug: googleMapsApiKey from metafields:", googleMapsApiKey);
 
   // Set app metafields to enable the store locator embed block and pass Google Maps API key
   try {
@@ -58,17 +60,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         type: "single_line_text_field",
         value: googleMapsApiKey,
       });
+      console.log("Debug: Adding API key to app installation metafields");
+    } else {
+      console.log("Debug: No API key found in merchant metafields");
     }
 
-    // Add app URL metafield for API calls
+    // Add app URL metafield for API calls - use cloudflare tunnel for development
+    const appUrl = process.env.SHOPIFY_APP_URL || "https://ms-earrings-private-overall.trycloudflare.com";
     metafields.push({
       namespace: "app",
       key: "app_url",
       type: "single_line_text_field",
-      value: process.env.SHOPIFY_APP_URL || "https://adjustments-chart-kai-interview.trycloudflare.com",
+      value: appUrl,
     });
+    
+    console.log("Debug: Setting app URL to:", appUrl);
 
-    await admin.graphql(`
+    const metafieldResponse = await admin.graphql(`
       #graphql
       mutation appInstallationMetafieldsSet($metafields: [AppInstallationMetafieldInput!]!) {
         appInstallationMetafieldsSet(metafields: $metafields) {
@@ -87,6 +95,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `, {
       variables: { metafields },
     });
+
+    const metafieldData = await metafieldResponse.json();
+    console.log("Debug: App installation metafields response:", JSON.stringify(metafieldData, null, 2));
+
+    if (metafieldData?.data?.appInstallationMetafieldsSet?.userErrors?.length > 0) {
+      console.error("App installation metafields errors:", metafieldData.data.appInstallationMetafieldsSet.userErrors);
+    } else {
+      console.log("Debug: App installation metafields set successfully");
+    }
   } catch (error) {
     console.error("Error setting app metafield:", error);
   }

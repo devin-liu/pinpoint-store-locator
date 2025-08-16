@@ -3,7 +3,7 @@
 client_id = "7d52cfcd5586fa5a86a67301539b3de2"
 name = "pinpoint-store-locator"
 handle = "pinpoint-store-locator"
-application_url = "https://medical-animated-near-rocky.trycloudflare.com"
+application_url = "https://bye-driver-keywords-ready.trycloudflare.com"
 embedded = true
 
 [build]
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "read_themes,write_products"
 
 [auth]
-redirect_urls = ["https://medical-animated-near-rocky.trycloudflare.com/auth/callback", "https://medical-animated-near-rocky.trycloudflare.com/auth/shopify/callback", "https://medical-animated-near-rocky.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://bye-driver-keywords-ready.trycloudflare.com/auth/callback", "https://bye-driver-keywords-ready.trycloudflare.com/auth/shopify/callback", "https://bye-driver-keywords-ready.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

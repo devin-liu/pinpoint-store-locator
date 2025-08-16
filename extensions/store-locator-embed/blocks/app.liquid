@@ -18,6 +18,14 @@
     <button type="button" id="search-btn-{{ block.id }}" class="store-search-btn">Search</button>
   </div>
 
+  <div>
+  metafields {{ app.metafields  }}
+    app metafields {{ app.metafields  }}
+    metafields {{ app.metafields.google_maps_api_key  }}
+    
+    
+  </div>
+
   {% if block.settings.show_map %}
     <div 
       id="store-map-{{ block.id }}" 
