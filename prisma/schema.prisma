@@ -47,7 +47,6 @@ model Store {
 model AppSettings {
   id              String    @id @default(cuid())
   shop            String    @unique
-  storeLocatorUrl  String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 }

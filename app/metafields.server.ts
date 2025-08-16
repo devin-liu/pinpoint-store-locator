@@ -3,6 +3,9 @@ import type { AdminApiContext } from "@shopify/shopify-app-remix/server";
 const GOOGLE_MAPS_NAMESPACE = "store_locator";
 const GOOGLE_MAPS_KEY = "google_maps_api_key";
 
+const STORE_LOCATOR_NAMESPACE = "store_locator";
+const STORE_LOCATOR_KEY = "store_locator_url";
+
 /**
  * Get the Google Maps API key from merchant-owned metafields
  */
@@ -97,6 +100,149 @@ export async function setGoogleMapsApiKey(admin: AdminApiContext, apiKey: string
     return true;
   } catch (error) {
     console.error("Error setting Google Maps API key in metafields:", error);
+    return false;
+  }
+}
+
+/**
+ * Get the store locator URL from merchant-owned metafields
+ */
+export async function getStoreLocatorUrl(admin: AdminApiContext): Promise<string | null> {
+  try {
+    const response = await admin.graphql(`
+      #graphql
+      query getStoreLocatorUrl {
+        shop {
+          metafield(namespace: "${STORE_LOCATOR_NAMESPACE}", key: "${STORE_LOCATOR_KEY}") {
+            value
+          }
+        }
+      }
+    `);
+
+    const data = await response.json();
+    return data?.data?.shop?.metafield?.value || null;
+  } catch (error) {
+    console.error("Error getting store locator URL from metafields:", error);
+    return null;
+  }
+}
+
+/**
+ * Set the store locator URL in merchant-owned metafields
+ */
+export async function setStoreLocatorUrl(admin: AdminApiContext, url: string): Promise<boolean> {
+  try {
+    const shopResponse = await admin.graphql(`
+      #graphql
+      query getShopId {
+        shop {
+          id
+        }
+      }
+    `);
+
+    const shopData = await shopResponse.json();
+    const shopId = shopData?.data?.shop?.id;
+
+    if (!shopId) {
+      console.error("Could not get shop ID");
+      return false;
+    }
+
+    const response = await admin.graphql(`
+      #graphql
+      mutation setStoreLocatorUrl($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields {
+            id
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `, {
+      variables: {
+        metafields: [
+          {
+            namespace: STORE_LOCATOR_NAMESPACE,
+            key: STORE_LOCATOR_KEY,
+            type: "url",
+            value: url,
+            ownerId: shopId
+          }
+        ]
+      }
+    });
+
+    const data = await response.json();
+
+    if (data?.data?.metafieldsSet?.userErrors?.length > 0) {
+      console.error("Error setting store locator URL:", data.data.metafieldsSet.userErrors);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error setting store locator URL in metafields:", error);
+    return false;
+  }
+}
+
+/**
+ * Delete the store locator URL from merchant-owned metafields
+ */
+export async function deleteStoreLocatorUrl(admin: AdminApiContext): Promise<boolean> {
+  try {
+    const getResponse = await admin.graphql(`
+      #graphql
+      query getStoreLocatorUrlId {
+        shop {
+          metafield(namespace: "${STORE_LOCATOR_NAMESPACE}", key: "${STORE_LOCATOR_KEY}") {
+            id
+          }
+        }
+      }
+    `);
+
+    const getData = await getResponse.json();
+    const metafieldId = getData?.data?.shop?.metafield?.id;
+
+    if (!metafieldId) {
+      return true; // Already deleted or doesn't exist
+    }
+
+    const deleteResponse = await admin.graphql(`
+      #graphql
+      mutation deleteStoreLocatorUrl($input: MetafieldDeleteInput!) {
+        metafieldDelete(input: $input) {
+          deletedId
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `, {
+      variables: {
+        input: {
+          id: metafieldId
+        }
+      }
+    });
+
+    const deleteData = await deleteResponse.json();
+
+    if (deleteData?.data?.metafieldDelete?.userErrors?.length > 0) {
+      console.error("Error deleting store locator URL:", deleteData.data.metafieldDelete.userErrors);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting store locator URL from metafields:", error);
     return false;
   }
 }
